@@ -1,0 +1,26 @@
+---
+spine:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.3
+vtep-1:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.5
+vtep-2:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.6
+host-1:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.20.20.2
+host-2:
+    username: 
+    password: 
+    platform: linux
+    hostname: 172.20.20.4
