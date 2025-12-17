@@ -1,0 +1,243 @@
+! Startup-config last modified at Wed Sep 24 12:50:44 2025 by root
+! device: leaf-02 (cEOSLab, EOS-4.34.2F-43232954.4342F.1 (engineering build))
+!
+no aaa root
+!
+username admin privilege 15 role network-admin secret sha512 $6$vkB7J4byPl8cJKvi$tMakgF13eTzbEBeG3DLroyOLCAL785UChi6QLD.tOEhaa.4U2dSd8PANGsYLuSE/brG6JM45xYLdN0mXaaU/h0
+!
+management api http-commands
+   no shutdown
+!
+switchport default mode routed
+!
+no service interface inactive port-id allocation disabled
+!
+transceiver qsfp default-mode 4x10G
+!
+service routing protocols model multi-agent
+!
+hostname leaf-02
+!
+spanning-tree mode mstp
+no spanning-tree vlan-id 4094
+!
+spanning-tree mst configuration
+   instance 1 vlan  1-4094
+!
+system l1
+   unsupported speed action error
+   unsupported error-correction action error
+!
+vlan 210
+   name V_VM_210
+!
+vlan 220
+   name V_VM_220
+!
+vlan 230
+   name V_VM_230
+!
+vlan 4094
+   name PEERING
+   trunk group PEERING
+!
+vrf instance Blue
+!
+vrf instance Green
+!
+vrf instance MGMT
+!
+management api gnmi
+   transport grpc default
+!
+management api netconf
+   transport ssh default
+!
+interface Port-Channel1
+   description MLAG1>>H2
+   switchport trunk native vlan 220
+   switchport mode trunk
+   switchport
+   mlag 1
+   spanning-tree portfast edge
+!
+interface Port-Channel1000
+   description PEERLINK>>LF3
+   switchport mode trunk
+   switchport trunk group PEERING
+   switchport
+!
+interface Ethernet1
+   description PEER>>SP1
+   mtu 9214
+   no switchport
+   ip address 10.10.250.5/31
+!
+interface Ethernet2
+   description PEER>>SP2
+   mtu 9214
+   no switchport
+   ip address 10.10.250.7/31
+!
+interface Ethernet3
+   description H2>>MLAG1
+   no switchport
+   channel-group 1 mode active
+!
+interface Ethernet47
+   description PEERLINK>>LF3
+   no switchport
+   channel-group 1000 mode active
+!
+interface Ethernet48
+   description PEERLINK>>LF3
+   no switchport
+   channel-group 1000 mode active
+!
+interface Loopback0
+   description EVPN-LF2-UNIQUE
+   ip address 10.10.255.12/32
+!
+interface Loopback1
+   description EVPN-LF2<>LF3-SHARED
+   ip address 10.10.255.112/32
+!
+interface Management0
+   vrf MGMT
+   ip address 172.20.20.4/24
+   ipv6 address 3fff:172:20:20::4/64
+!
+interface Vlan210
+   description VM_210
+   ip address virtual 10.10.210.1/24
+!
+interface Vlan220
+   description VM_220
+   vrf Blue
+   ip address virtual 10.10.220.1/24
+!
+interface Vlan230
+   description VM_230
+   vrf Green
+   ip address virtual 10.10.230.1/24
+!
+interface Vlan4094
+   description PEERING
+   no autostate
+   ip address 169.254.0.0/31
+!
+interface Vxlan1
+   vxlan source-interface Loopback1
+   vxlan virtual-router encapsulation mac-address mlag-system-id
+   vxlan udp-port 4789
+   vxlan vlan 210-239 vni 10210-10239
+   vxlan vrf Blue vni 1020
+   vxlan vrf Green vni 1030
+   vxlan vrf default vni 1010
+!
+ip virtual-router mac-address 00:1c:73:ab:cd:ef
+!
+ip routing
+ip routing vrf Blue
+ip routing vrf Green
+ip routing vrf MGMT
+!
+ip prefix-list PL-LOOPBACKS
+   seq 10 permit 10.10.255.0/24 eq 32
+!
+mlag configuration
+   domain-id MLAG
+   local-interface Vlan4094
+   peer-address 169.254.0.1
+   peer-link Port-Channel1000
+!
+ip route vrf MGMT 0.0.0.0/0 172.20.20.1
+!
+ipv6 route vrf MGMT ::/0 3fff:172:20:20::1
+!
+route-map RM-LOOPBACKS permit 10
+   match ip address prefix-list PL-LOOPBACKS
+!
+route-map RM-MLAG-PEER permit 10
+   description Make routes learned over MLAG Peer-link less preferred on spines to ensure optimal routing
+   set origin incomplete
+!
+router bgp 65002
+   router-id 10.10.255.12
+   update wait-install
+   no bgp default ipv4-unicast
+   maximum-paths 2 ecmp 2
+   neighbor MLAG peer group
+   neighbor MLAG remote-as 65002
+   neighbor MLAG next-hop-self
+   neighbor MLAG route-map RM-MLAG-PEER in
+   neighbor MLAG send-community
+   neighbor MLAG maximum-routes 12000
+   neighbor OVERLAY peer group
+   neighbor OVERLAY remote-as 64600
+   neighbor OVERLAY update-source Loopback0
+   neighbor OVERLAY bfd
+   neighbor OVERLAY ebgp-multihop 3
+   neighbor OVERLAY send-community
+   neighbor OVERLAY maximum-routes 0 warning-limit 12000
+   neighbor UNDERLAY peer group
+   neighbor UNDERLAY remote-as 64600
+   neighbor UNDERLAY send-community
+   neighbor UNDERLAY maximum-routes 12000
+   neighbor 10.10.250.4 peer group UNDERLAY
+   neighbor 10.10.250.4 description SP1
+   neighbor 10.10.250.6 peer group UNDERLAY
+   neighbor 10.10.250.6 description SP2
+   neighbor 10.10.255.1 peer group OVERLAY
+   neighbor 10.10.255.1 description SP1
+   neighbor 10.10.255.2 peer group OVERLAY
+   neighbor 10.10.255.2 description SP2
+   neighbor 169.254.0.1 peer group MLAG
+   neighbor 169.254.0.1 description LF3
+   redistribute connected route-map RM-LOOPBACKS
+   !
+   vlan-aware-bundle V210-219
+      rd 10.10.255.12:210
+      route-target both 10010:1
+      redistribute learned
+      vlan 210-219
+   !
+   vlan-aware-bundle V220-229
+      rd 10.10.255.12:220
+      route-target both 10020:2
+      redistribute learned
+      vlan 220-229
+   !
+   vlan-aware-bundle V230-239
+      rd 10.10.255.12:230
+      route-target both 10030:3
+      redistribute learned
+      vlan 230-239
+   !
+   address-family evpn
+      neighbor OVERLAY activate
+   !
+   address-family ipv4
+      neighbor MLAG activate
+      neighbor UNDERLAY activate
+   !
+   vrf Blue
+      rd 10.10.255.12:1020
+      route-target import evpn 1020:1020
+      route-target export evpn 1020:1020
+      router-id 10.10.255.12
+      redistribute connected
+   !
+   vrf Green
+      rd 10.10.255.12:1030
+      route-target import evpn 1030:1030
+      route-target export evpn 1030:1030
+      router-id 10.10.255.12
+      redistribute connected
+   !
+   vrf default
+      rd 10.10.255.12:1010
+      route-target import evpn 1010:1010
+      route-target export evpn 1010:1010
+!
+end
