@@ -1,0 +1,125 @@
+! Startup-config last modified at Wed Sep 24 12:50:47 2025 by root
+! device: spine-02 (cEOSLab, EOS-4.34.2F-43232954.4342F.1 (engineering build))
+!
+no aaa root
+!
+username admin privilege 15 role network-admin secret sha512 $6$TAALMei00Ldax2CG$SekOnCOaRqh8nVhVBSPb.tBru/ULvDp2KLHBAc.wioOs4.VpyuuJ.ktmSXuOBQ1LbW8hEILSR7tmFj/Tho3KK1
+!
+management api http-commands
+   no shutdown
+!
+switchport default mode routed
+!
+no service interface inactive port-id allocation disabled
+!
+transceiver qsfp default-mode 4x10G
+!
+service routing protocols model multi-agent
+!
+hostname spine-02
+!
+spanning-tree mode mstp
+!
+system l1
+   unsupported speed action error
+   unsupported error-correction action error
+!
+vrf instance MGMT
+!
+management api gnmi
+   transport grpc default
+!
+management api netconf
+   transport ssh default
+!
+interface Ethernet1
+   description PEERING>>LF1
+   mtu 9214
+   no switchport
+   ip address 10.10.250.2/31
+!
+interface Ethernet2
+   description PEERING>>LF2
+   mtu 9214
+   no switchport
+   ip address 10.10.250.6/31
+!
+interface Ethernet3
+   description PEERING>>LF3
+   mtu 9214
+   no switchport
+   ip address 10.10.250.10/31
+!
+interface Loopback0
+   description EVPN-SP1-UNIQUE
+   ip address 10.10.255.2/32
+!
+interface Management0
+   vrf MGMT
+   ip address 172.20.20.7/24
+   ipv6 address 3fff:172:20:20::7/64
+!
+ip routing
+ip routing vrf MGMT
+!
+ip prefix-list PL-LOOPBACKS
+   seq 10 permit 10.10.255.0/24 eq 32
+!
+ip route 0.0.0.0/0 172.20.20.1
+!
+ipv6 route ::/0 3fff:172:20:20::1
+!
+route-map RM-LOOPBACKS permit 10
+   match ip address prefix-list PL-LOOPBACKS
+!
+router bgp 64600
+   router-id 10.10.255.2
+   update wait-for-convergence
+   update wait-install
+   no bgp default ipv4-unicast
+   maximum-paths 2 ecmp 2
+   neighbor OVERLAY peer group
+   neighbor OVERLAY next-hop-unchanged
+   neighbor OVERLAY update-source Loopback0
+   neighbor OVERLAY bfd
+   neighbor OVERLAY ebgp-multihop 3
+   neighbor OVERLAY send-community
+   neighbor OVERLAY maximum-routes 0 warning-limit 12000
+   neighbor UNDERLAY peer group
+   neighbor UNDERLAY send-community
+   neighbor UNDERLAY maximum-routes 12000
+   neighbor 10.10.250.3 peer group UNDERLAY
+   neighbor 10.10.250.3 remote-as 65001
+   neighbor 10.10.250.3 description LF1
+   neighbor 10.10.250.7 peer group UNDERLAY
+   neighbor 10.10.250.7 remote-as 65002
+   neighbor 10.10.250.7 description LF2
+   neighbor 10.10.250.11 peer group UNDERLAY
+   neighbor 10.10.250.11 remote-as 65002
+   neighbor 10.10.250.11 description LF3
+   neighbor 10.10.255.11 peer group OVERLAY
+   neighbor 10.10.255.11 remote-as 65001
+   neighbor 10.10.255.11 description LF1
+   neighbor 10.10.255.12 peer group OVERLAY
+   neighbor 10.10.255.12 remote-as 65002
+   neighbor 10.10.255.12 description LF2
+   neighbor 10.10.255.13 peer group OVERLAY
+   neighbor 10.10.255.13 remote-as 65002
+   neighbor 10.10.255.13 description LF3
+   redistribute connected route-map RM-LOOPBACKS
+   !
+   address-family evpn
+      neighbor OVERLAY activate
+   !
+   address-family ipv4
+      neighbor UNDERLAY activate
+!
+router multicast
+   ipv4
+      routing
+      software-forwarding kernel
+   !
+   ipv6
+      software-forwarding kernel
+!
+end
