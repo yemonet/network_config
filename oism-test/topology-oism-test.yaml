@@ -1,0 +1,53 @@
+name: oism-test
+prefix: ""
+topology:
+  kinds:
+    ceos:
+      image: ceos:4.34.2F
+  nodes:
+    spine:
+      kind: ceos
+    vtep-1:
+      kind: ceos
+    vtep-2:
+      kind: ceos
+        #    vtep-3:
+        # kind: ceos
+        #    router:
+        # kind: ceos 
+    host-1:
+      kind: linux
+      image: ubuntu:20.04
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      exec:
+        - apt-get update
+        - apt-get install -y tcpdump iperf iproute2 iputils-ping
+        - ip addr add 192.168.1.2/24 dev eth1
+        - ip link set eth1 up
+        - ip route replace default via 192.168.1.1 dev eth1
+    host-2:
+      kind: linux
+      image: ubuntu:20.04
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      exec:
+        - apt-get update
+        - apt-get install -y iperf tcpdump smcroute iproute2 iputils-ping
+        - ip addr add 192.168.2.2/24 dev eth1
+        - ip link set eth1 up
+        - ip route replace default via 192.168.2.1 dev eth1   # ★ 기본 GW
+        - sh -c "smcrouted -n &"
+  links:
+    # vtep-1 uplinks
+    - endpoints: ["spine:eth1", "vtep-1:eth1"]
+
+    # vtep-2 uplinks
+    - endpoints: ["spine:eth2", "vtep-2:eth1"]
+
+    # vtep-3 uplinks
+    #    - endpoints: ["spine:eth3", "vtep-3:eth1"]
+
+    # host uplinks
+    - endpoints: ["host-1:eth1", "vtep-1:eth2"]
+    - endpoints: ["host-2:eth1", "vtep-2:eth2"]
