@@ -1,0 +1,160 @@
+! Startup-config last modified at Wed Sep 24 12:33:33 2025 by root
+! device: vtep-2 (cEOSLab, EOS-4.34.2F-43232954.4342F.1 (engineering build))
+!
+no aaa root
+!
+username admin privilege 15 role network-admin secret sha512 $6$Vm5q1hBlTMZOp08K$3wM2HHzd2ZL2WKIw8.SOKtvLVH2SwJN8msOUu3nFVuFEZ9kx8GOlecPNZOxR9DIAhUOB72gbB23B34oHBSEbj.
+!
+management api http-commands
+   no shutdown
+!
+ip igmp snooping vlan 10 proxy
+ip igmp snooping vlan 20 proxy
+!
+no service interface inactive port-id allocation disabled
+!
+transceiver qsfp default-mode 4x10G
+!
+service routing protocols model multi-agent
+!
+hostname vtep-2
+!
+spanning-tree mode mstp
+!
+system l1
+   unsupported speed action error
+   unsupported error-correction action error
+!
+vlan 10,20
+!
+vrf instance MGMT
+!
+vrf instance red
+!
+management api gnmi
+   transport grpc default
+!
+management api netconf
+   transport ssh default
+!
+interface Ethernet1
+   mtu 9214
+   no switchport
+   ip address 24.1.1.1/30
+   pim ipv4 sparse-mode
+!
+interface Ethernet2
+   mtu 9214
+   switchport access vlan 20
+!
+interface Loopback0
+   ip address 2.2.2.2/32
+!
+interface Loopback1
+   ip address 20.20.20.20/32
+!
+interface Management0
+   vrf MGMT
+   ip address 172.20.20.6/24
+   ipv6 address 3fff:172:20:20::6/64
+!
+interface Vlan10
+   no autostate
+   vrf red
+   ip igmp
+   ip igmp querier address virtual
+   ip address virtual 192.168.1.1/24
+!
+interface Vlan20
+   no autostate
+   vrf red
+   ip igmp
+   ip igmp querier address virtual
+   ip igmp static-group 232.10.10.10 192.168.1.2
+   ip address virtual 192.168.2.1/24
+!
+interface Vxlan1
+   vxlan source-interface Loopback1
+   vxlan udp-port 4789
+   vxlan vlan 10 vni 10
+   vxlan vlan 20 vni 20
+   vxlan vrf red vni 100
+   vxlan vrf red multicast group 232.100.100.100
+!
+ip virtual-router mac-address 00:1c:73:ab:cd:ef
+!
+ip routing
+ip routing vrf MGMT
+ip routing vrf red
+!
+ip prefix-list PL-LOOPBACKS
+   seq 10 permit 2.2.2.2/32 eq 32
+   seq 20 permit 20.20.20.20/32 eq 32
+!
+ip route vrf MGMT 0.0.0.0/0 172.20.20.1
+!
+ipv6 route vrf MGMT ::/0 3fff:172:20:20::1
+!
+route-map RM-LOOPBACKS permit 10
+   match ip address prefix-list PL-LOOPBACKS
+!
+router bgp 2
+   neighbor OVERLAY peer group
+   neighbor OVERLAY update-source Loopback0
+   neighbor OVERLAY ebgp-multihop 3
+   neighbor OVERLAY send-community extended
+   neighbor UNDERLAY peer group
+   neighbor UNDERLAY send-community
+   neighbor UNDERLAY maximum-routes 12000
+   neighbor 4.4.4.4 peer group OVERLAY
+   neighbor 4.4.4.4 remote-as 4
+   neighbor 24.1.1.2 peer group UNDERLAY
+   neighbor 24.1.1.2 remote-as 4
+   redistribute connected route-map RM-LOOPBACKS
+   !
+   vlan 10
+      rd 10:2
+      route-target both 10:1
+      redistribute learned
+      redistribute igmp
+   !
+   vlan 20
+      rd 20:2
+      route-target both 20:1
+      redistribute learned
+      redistribute igmp
+   !
+   address-family evpn
+      neighbor OVERLAY activate
+   !
+   address-family ipv4
+      neighbor UNDERLAY activate
+   !
+   vrf red
+      rd 100:2
+      evpn multicast
+      route-target import evpn 100:1
+      route-target export evpn 100:1
+      redistribute connected
+!
+router multicast
+   ipv4
+      routing
+      software-forwarding kernel
+   !
+   ipv6
+      software-forwarding kernel
+   !
+   vrf red
+      ipv4
+         routing
+!
+router pim sparse-mode
+   ipv4
+      ssm range standard
+   !
+   vrf red
+      ipv4
+         ssm range standard
+!
+end
